@@ -5,13 +5,12 @@ const io = socketIo(server, { cors: { origin: "*" } });
 
 let worker, router;
 
-let transports = {};
-let producers = {}; // 存储所有的 Producer（推流端）
-let consumers = {}; // 存储所有的 Consumer（拉流端）
+const transports = {};
+const producers = {}; // 存储所有的 Producer（推流端）
+const consumers = {}; // 存储所有的 Consumer（拉流端）
 
-const getRoomId = (socket) => {
-  return [...socket.rooms].filter((room) => room !== socket.id)[0] || null;
-};
+const roomToProducer = {};
+const socketToRoom = {};
 
 // 初始化 Mediasoup
 (async () => {
@@ -39,6 +38,10 @@ io.on("connection", async (socket) => {
 
   socket.on("join", (roomId, callback) => {
     socket.join(roomId);
+
+    roomToProducer[roomId] = roomToProducer[roomId] || [];
+    socketToRoom[socket.id] = roomId;
+
     callback();
   });
 
@@ -46,6 +49,9 @@ io.on("connection", async (socket) => {
     callback(router.rtpCapabilities)
   );
 
+  // 创建 Transport, 用于传输数据
+  // RecvTransport 用于接收数据
+  // SendTransport 用于发送数据
   socket.on("createTransport", async (callback) => {
     const transport = await router.createWebRtcTransport({
       listenIps: [{ ip: "127.0.0.1", announcedIp: null }],
@@ -65,6 +71,7 @@ io.on("connection", async (socket) => {
     });
   });
 
+  // 连接 Transport
   socket.on(
     "connectTransport",
     async ({ transportId, dtlsParameters }, callback) => {
@@ -75,6 +82,9 @@ io.on("connection", async (socket) => {
     }
   );
 
+  // 有客户端推流
+  // 通知其他客户端接收推流
+  // transportId 用于传输数据
   socket.on(
     "produce",
     async ({ transportId, kind, rtpParameters }, callback) => {
@@ -84,13 +94,18 @@ io.on("connection", async (socket) => {
       });
       producers[socket.id][producer.id] = producer;
 
-      const roomId = getRoomId(socket);
+      const roomId = socketToRoom[socket.id];
       io.to(roomId).emit("newProducer", producer.id);
+
+      roomToProducer[roomId].push(producer.id);
 
       callback({ id: producer.id });
     }
   );
 
+  // 让客户端拉流
+  // 拉流需要知道推流端的 id
+  // transportId 用于传输数据
   socket.on(
     "consume",
     async ({ transportId, producerId, rtpCapabilities }, callback) => {
@@ -115,14 +130,18 @@ io.on("connection", async (socket) => {
     }
   );
 
+  // 客户端想要获取当前房间的所有数据
+  socket.on("getProducers", (callback) => {
+    const roomId = socketToRoom[socket.id];
+    callback(roomToProducer[roomId]);
+  });
+
   socket.on("resume", async ({ consumerId }, callback) => {
     await consumers[socket.id][consumerId].resume();
     callback();
   });
 
   socket.on("disconnect", () => {
-    console.log(`Client disconnected: ${socket.id}`);
-
     Object.values(transports[socket.id]).forEach((transport) => {
       transport.close();
     });
@@ -130,6 +149,14 @@ io.on("connection", async (socket) => {
 
     Object.values(producers[socket.id]).forEach((producer) => {
       producer.close();
+
+      const roomId = socketToRoom[socket.id];
+      roomToProducer[roomId] = roomToProducer[roomId].filter(
+        (id) => id !== producer.id
+      );
+
+      // 通知其他客户端关闭 Producer
+      io.to(roomId).emit("closeProducer", producer.id);
     });
     delete producers[socket.id];
 
