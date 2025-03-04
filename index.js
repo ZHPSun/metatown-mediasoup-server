@@ -33,6 +33,10 @@ const getRoomId = (socket) => {
 io.on("connection", async (socket) => {
   console.log(`Client connected: ${socket.id}`);
 
+  transports[socket.id] = {};
+  producers[socket.id] = {};
+  consumers[socket.id] = {};
+
   socket.on("join", (roomId, callback) => {
     socket.join(roomId);
     callback();
@@ -50,7 +54,7 @@ io.on("connection", async (socket) => {
       preferUdp: true,
     });
 
-    transports[transport.id] = transport;
+    transports[socket.id][transport.id] = transport;
     console.log("createTransport", transport.id);
 
     callback({
@@ -66,7 +70,7 @@ io.on("connection", async (socket) => {
     async ({ transportId, dtlsParameters }, callback) => {
       console.log("connectTransport", transportId);
 
-      await transports[transportId].connect({ dtlsParameters });
+      await transports[socket.id][transportId].connect({ dtlsParameters });
       callback();
     }
   );
@@ -74,12 +78,13 @@ io.on("connection", async (socket) => {
   socket.on(
     "produce",
     async ({ transportId, kind, rtpParameters }, callback) => {
-      const producer = await transports[transportId].produce({
+      const producer = await transports[socket.id][transportId].produce({
         kind,
         rtpParameters,
       });
-      producers[producer.id] = producer;
+      producers[socket.id][producer.id] = producer;
 
+      const roomId = getRoomId(socket);
       io.to(roomId).emit("newProducer", producer.id);
 
       callback({ id: producer.id });
@@ -94,13 +99,13 @@ io.on("connection", async (socket) => {
         return callback({ error: "Cannot consume" });
       }
 
-      const consumer = await transports[transportId].consume({
+      const consumer = await transports[socket.id][transportId].consume({
         producerId,
         rtpCapabilities,
         paused: false,
       });
 
-      consumers[consumer.id] = consumer;
+      consumers[socket.id][consumer.id] = consumer;
 
       callback({
         id: consumer.id,
@@ -111,12 +116,27 @@ io.on("connection", async (socket) => {
   );
 
   socket.on("resume", async ({ consumerId }, callback) => {
-    await consumers[consumerId].resume();
+    await consumers[socket.id][consumerId].resume();
     callback();
   });
 
   socket.on("disconnect", () => {
     console.log(`Client disconnected: ${socket.id}`);
+
+    Object.values(transports[socket.id]).forEach((transport) => {
+      transport.close();
+    });
+    delete transports[socket.id];
+
+    Object.values(producers[socket.id]).forEach((producer) => {
+      producer.close();
+    });
+    delete producers[socket.id];
+
+    Object.values(consumers[socket.id]).forEach((consumer) => {
+      consumer.close();
+    });
+    delete consumers[socket.id];
   });
 });
 
