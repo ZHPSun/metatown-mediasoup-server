@@ -52,7 +52,7 @@ io.on("connection", async (socket) => {
 
   socket.on("createTransport", async (callback) => {
     const transport = await router.createWebRtcTransport({
-      listenIps: [{ ip: "127.0.0.1", announcedIp: process.env.ANNOUNCED_IP }],
+      listenIps: [{ ip: "0.0.0.0", announcedIp: process.env.ANNOUNCED_IP }],
       PortRange: { min: 40000, max: 49999 },
       enableUdp: true,
       enableTcp: true,
@@ -174,6 +174,6 @@ io.on("connection", async (socket) => {
   });
 });
 
-server.listen(process.env.PORT || 3000, () =>
+server.listen(process.env.PORT || 3000, "0.0.0.0", () =>
   console.log("Server running on port 3000")
 );
