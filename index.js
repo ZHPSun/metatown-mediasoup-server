@@ -51,9 +51,9 @@ io.on("connection", async (socket) => {
   );
 
   socket.on("createTransport", async (callback) => {
+    console.log("createTransport.announcedIp", process.env.ANNOUNCED_IP);
     const transport = await router.createWebRtcTransport({
       listenIps: [{ ip: "0.0.0.0", announcedIp: process.env.ANNOUNCED_IP }],
-      PortRange: { min: 40000, max: 49999 },
       enableUdp: true,
       enableTcp: true,
       preferUdp: true,
