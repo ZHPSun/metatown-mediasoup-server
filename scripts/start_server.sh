@@ -10,4 +10,4 @@ PUBLIC_IP=$(curl -sH "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/l
 
 echo "ANNOUNCED_IP=$PUBLIC_IP" > /home/ec2-user/app/.env
 
-pm2 start index.js --env-file /home/ec2-user/app/.env
+pm2 start index.js --env-file .env
