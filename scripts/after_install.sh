@@ -8,4 +8,4 @@ sudo chmod -R 755 /home/ec2-user/app
 
 cd /home/ec2-user/app
 
-npm install --production
+npm install
