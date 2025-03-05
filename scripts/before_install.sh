@@ -10,6 +10,3 @@ node -v
 npm -v
 
 sudo npm install -g pm2
-
-sudo chown -R ec2-user:ec2-user /home/ec2-user/app
-sudo chmod -R 755 /home/ec2-user/app
