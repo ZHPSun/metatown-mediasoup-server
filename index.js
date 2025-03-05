@@ -1,24 +1,20 @@
-const mediasoup = require("mediasoup"); // 引入 Mediasoup 处理 WebRTC
+const mediasoup = require("mediasoup");
 const socketIo = require("socket.io");
-const server = require("http").createServer(); // 创建 HTTP 服务器
+const server = require("http").createServer();
 const io = socketIo(server, { cors: { origin: "*" } });
 
 let worker, router;
 
 const transports = {};
-const producers = {}; // 存储所有的 Producer（推流端）
-const consumers = {}; // 存储所有的 Consumer（拉流端）
+const producers = {};
+const consumers = {};
 
 const roomToProducer = {};
 const socketToRoom = {};
 
-// 初始化 Mediasoup
 (async () => {
-  worker = await mediasoup.createWorker({
-    logLevel: "debug",
-  }); // 创建 Mediasoup Worker 进程
+  worker = await mediasoup.createWorker();
   router = await worker.createRouter({
-    // 创建 Router 负责流路由
     mediaCodecs: [
       { kind: "audio", mimeType: "audio/opus", clockRate: 48000, channels: 2 },
       { kind: "video", mimeType: "video/VP8", clockRate: 90000 },
@@ -28,7 +24,6 @@ const socketToRoom = {};
   console.log("Mediasoup Router created");
 })();
 
-// 监听 WebSocket 连接
 io.on("connection", async (socket) => {
   console.log(`Client connected: ${socket.id}`);
 
@@ -49,19 +44,16 @@ io.on("connection", async (socket) => {
     callback(router.rtpCapabilities)
   );
 
-  // 创建 Transport, 用于传输数据
-  // RecvTransport 用于接收数据
-  // SendTransport 用于发送数据
   socket.on("createTransport", async (callback) => {
     const transport = await router.createWebRtcTransport({
-      listenIps: [{ ip: "127.0.0.1", announcedIp: null }],
+      listenIps: [{ ip: "127.0.0.1", announcedIp: process.env.ANNOUNCED_IP }],
+      PortRange: { min: 40000, max: 49999 },
       enableUdp: true,
       enableTcp: true,
       preferUdp: true,
     });
 
     transports[socket.id][transport.id] = transport;
-    console.log("createTransport", transport.id);
 
     callback({
       id: transport.id,
@@ -71,7 +63,6 @@ io.on("connection", async (socket) => {
     });
   });
 
-  // 连接 Transport
   socket.on(
     "connectTransport",
     async ({ transportId, dtlsParameters }, callback) => {
@@ -82,9 +73,6 @@ io.on("connection", async (socket) => {
     }
   );
 
-  // 有客户端推流
-  // 通知其他客户端接收推流
-  // transportId 用于传输数据
   socket.on(
     "produce",
     async ({ transportId, kind, rtpParameters }, callback) => {
@@ -92,24 +80,20 @@ io.on("connection", async (socket) => {
         kind,
         rtpParameters,
       });
-      producers[socket.id][producer.id] = producer;
 
       const roomId = socketToRoom[socket.id];
-      io.to(roomId).emit("newProducer", producer.id);
 
+      producers[socket.id][producer.id] = producer;
       roomToProducer[roomId].push(producer.id);
+      io.to(roomId).emit("newProducer", producer.id);
 
       callback({ id: producer.id });
     }
   );
 
-  // 让客户端拉流
-  // 拉流需要知道推流端的 id
-  // transportId 用于传输数据
   socket.on(
     "consume",
     async ({ transportId, producerId, rtpCapabilities }, callback) => {
-      console.log("consume", "transportId", transportId);
       if (!router.canConsume({ producerId, rtpCapabilities })) {
         return callback({ error: "Cannot consume" });
       }
@@ -130,15 +114,33 @@ io.on("connection", async (socket) => {
     }
   );
 
-  // 客户端想要获取当前房间的所有数据
   socket.on("getProducers", (callback) => {
     const roomId = socketToRoom[socket.id];
     callback(roomToProducer[roomId]);
   });
 
-  socket.on("resume", async ({ consumerId }, callback) => {
+  socket.on("resumeConsumer", async ({ consumerId }, callback) => {
     await consumers[socket.id][consumerId].resume();
-    callback();
+    callback?.();
+  });
+
+  socket.on("pauseConsumer", async ({ consumerId }, callback) => {
+    console.log("pauseConsumer", consumerId);
+
+    await consumers[socket.id][consumerId].pause();
+    callback?.();
+  });
+
+  socket.on("resumeProducer", async ({ producerId }, callback) => {
+    await producers[socket.id][producerId].resume();
+    callback?.();
+  });
+
+  socket.on("pauseProducer", async ({ producerId }, callback) => {
+    console.log("pauseProducer", producerId);
+
+    await producers[socket.id][producerId].pause();
+    callback?.();
   });
 
   socket.on("disconnect", () => {
@@ -155,7 +157,6 @@ io.on("connection", async (socket) => {
         (id) => id !== producer.id
       );
 
-      // 通知其他客户端关闭 Producer
       io.to(roomId).emit("closeProducer", producer.id);
     });
     delete producers[socket.id];
@@ -167,5 +168,6 @@ io.on("connection", async (socket) => {
   });
 });
 
-// 启动 WebSocket 服务器
-server.listen(3000, () => console.log("Server running on port 3000"));
+server.listen(process.env.PORT || 3000, () =>
+  console.log("Server running on port 3000")
+);
