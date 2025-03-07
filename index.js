@@ -1,11 +1,32 @@
 const mediasoup = require("mediasoup");
 const socketIo = require("socket.io");
 const http = require("http");
+const https = require("https");
 
-const server = http.createServer((_, res) => {
+let server;
+
+const listener = (_, res) => {
   res.writeHead(200, { "Content-Type": "text/plain" });
   res.end("OK");
-});
+};
+
+if (process.env.HTTPS) {
+  console.log("Using HTTPS");
+
+  const fs = require("fs");
+  const path = require("path");
+
+  const options = {
+    key: fs.readFileSync(path.join(process.env.HTTPS, "privkey.pem")),
+    cert: fs.readFileSync(path.join(process.env.HTTPS, "fullchain.pem")),
+  };
+
+  server = https.createServer(options, listener);
+} else {
+  console.log("Using HTTP");
+
+  server = http.createServer(listener);
+}
 
 const io = socketIo(server, { cors: { origin: "*" } });
 
