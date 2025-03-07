@@ -26,4 +26,4 @@ fi
 # 启动 PM2 进程（环境变量已设置）
 echo "Starting application with PM2..."
 
-pm2 start index.js
+pm2 start index.js --update-env
