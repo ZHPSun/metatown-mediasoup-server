@@ -36,9 +36,6 @@ const transports = {};
 const producers = {};
 const consumers = {};
 
-const roomToProducer = {};
-const socketToRoom = {};
-
 (async () => {
   worker = await mediasoup.createWorker();
   router = await worker.createRouter({
@@ -58,23 +55,18 @@ io.on("connection", async (socket) => {
   producers[socket.id] = {};
   consumers[socket.id] = {};
 
-  socket.on("join", (roomId, callback) => {
-    socket.join(roomId);
-
-    roomToProducer[roomId] = roomToProducer[roomId] || [];
-    socketToRoom[socket.id] = roomId;
-
-    callback();
-  });
-
   socket.on("getRouterRtpCapabilities", (callback) =>
     callback(router.rtpCapabilities)
   );
 
   socket.on("createTransport", async (callback) => {
-    console.log("createTransport.announcedIp", process.env.ANNOUNCED_IP);
+    console.log("createTransport");
+
     const transport = await router.createWebRtcTransport({
-      listenIps: [{ ip: "0.0.0.0", announcedIp: process.env.ANNOUNCED_IP }],
+      listenIps: [
+        { ip: "0.0.0.0", announcedIp: process.env.ANNOUNCED_IP },
+        { ip: "127.0.0.1", announcedIp: null },
+      ],
       enableUdp: true,
       enableTcp: true,
       preferUdp: true,
@@ -108,11 +100,7 @@ io.on("connection", async (socket) => {
         rtpParameters,
       });
 
-      const roomId = socketToRoom[socket.id];
-
       producers[socket.id][producer.id] = producer;
-      roomToProducer[roomId].push(producer.id);
-      io.to(roomId).emit("newProducer", producer.id);
 
       callback({ id: producer.id });
     }
@@ -140,11 +128,6 @@ io.on("connection", async (socket) => {
       });
     }
   );
-
-  socket.on("getProducers", (callback) => {
-    const roomId = socketToRoom[socket.id];
-    callback(roomToProducer[roomId]);
-  });
 
   socket.on("resumeConsumer", async ({ consumerId }, callback) => {
     await consumers[socket.id][consumerId].resume();
@@ -178,13 +161,6 @@ io.on("connection", async (socket) => {
 
     Object.values(producers[socket.id]).forEach((producer) => {
       producer.close();
-
-      const roomId = socketToRoom[socket.id];
-      roomToProducer[roomId] = roomToProducer[roomId].filter(
-        (id) => id !== producer.id
-      );
-
-      io.to(roomId).emit("closeProducer", producer.id);
     });
     delete producers[socket.id];
 
