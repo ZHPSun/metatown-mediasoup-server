@@ -62,11 +62,12 @@ io.on("connection", async (socket) => {
   socket.on("createTransport", async (callback) => {
     console.log("createTransport");
 
+    const listenIp = process.env.ANNOUNCED_IP
+      ? { ip: "0.0.0.0", announcedIp: process.env.ANNOUNCED_IP }
+      : { ip: "127.0.0.1", announcedIp: null };
+
     const transport = await router.createWebRtcTransport({
-      listenIps: [
-        { ip: "0.0.0.0", announcedIp: process.env.ANNOUNCED_IP },
-        { ip: "127.0.0.1", announcedIp: null },
-      ],
+      listenIps: [listenIp],
       enableUdp: true,
       enableTcp: true,
       preferUdp: true,
