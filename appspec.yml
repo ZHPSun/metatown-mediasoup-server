@@ -14,6 +14,12 @@ hooks:
     - location: scripts/after_install.sh
       timeout: 300
       runas: ec2-user
+    - location: scripts/install_node_exporter.sh
+      timeout: 300
+      runas: root
+    - location: scripts/install_cloudwatch_agent.sh
+      timeout: 300
+      runas: root
 
   ApplicationStart:
     - location: scripts/start_server.sh
