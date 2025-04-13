@@ -13,16 +13,16 @@ echo "Public IP: $PUBLIC_IP"
 export ANNOUNCED_IP=$PUBLIC_IP
 
 # SSL 证书路径
-SSL_PATH="/etc/letsencrypt/live/mediasoup.melfish.xyz/"
+# SSL_PATH="/etc/letsencrypt/live/mediasoup.melfish.xyz/"
 
-if [[ -d "$SSL_PATH" && -f "$SSL_PATH/fullchain.pem" && -f "$SSL_PATH/privkey.pem" ]]; then
-    echo "SSL certificate found, enabling HTTPS..."
-    export HTTPS=$SSL_PATH
-else
-    echo "SSL certificate not found, starting in HTTP mode..."
-    unset HTTPS  # 确保 HTTPS 变量未定义
-fi
-
+# if [[ -d "$SSL_PATH" && -f "$SSL_PATH/fullchain.pem" && -f "$SSL_PATH/privkey.pem" ]]; then
+#     echo "SSL certificate found, enabling HTTPS..."
+#     export HTTPS=$SSL_PATH
+# else
+#     echo "SSL certificate not found, starting in HTTP mode..."
+#     unset HTTPS  # 确保 HTTPS 变量未定义
+# fi
+unset HTTPS
 # 启动 PM2 进程（环境变量已设置）
 echo "Starting application with PM2..."
 
