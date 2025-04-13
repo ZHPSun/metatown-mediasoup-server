@@ -1,6 +1,12 @@
 name: Deploy to AWS CodeDeploy
 
 on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Select a feature branch to deploy"
+        required: true
+        default: "feat/monitoring-agent-setup"
   push:
     branches:
       - main
