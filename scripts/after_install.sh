@@ -2,21 +2,19 @@
 set -e
 set -x
 
-echo "AfterInstall: Fixing permissions and installing dependencies"
+echo "AfterInstall: Preparing app directory"
 
 APP_DIR="/home/ec2-user/app"
+LOG_DIR="$APP_DIR/logs"
 
-# 确保 app 目录存在并属于 ec2-user
-mkdir -p "$APP_DIR"
-chown -R ec2-user:ec2-user "$APP_DIR"
+# 确保 logs 子目录存在（ec2-user 可写）
+mkdir -p "$LOG_DIR"
+chmod 755 "$LOG_DIR"
 
-# 创建 logs 子目录（确保可写）
-mkdir -p "$APP_DIR/logs"
-
-# 如果存在 package.json 则安装依赖
+# 安装依赖（如存在 package.json）
 if [ -f "$APP_DIR/package.json" ]; then
   cd "$APP_DIR"
-  npm install || echo "⚠️ npm install failed, skipping..."
+  npm install || echo "⚠️ npm install failed"
 fi
 
 echo "✅ AfterInstall completed"
