@@ -1,6 +1,7 @@
 name: Deploy to AWS CodeDeploy
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
